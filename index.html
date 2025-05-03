@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Currency Converter</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        line-height: 1.6;
+      }
+      .container {
+        background-color: #f9f9f9;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        box-sizing: border-box;
+      }
+      input,
+      select,
+      button {
+        box-sizing: border-box;
+      }
+      h1 {
+        color: #333;
+        margin-bottom: 20px;
+      }
+      label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: bold;
+      }
+      input {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        margin-bottom: 10px;
+        font-size: 16px;
+      }
+      button {
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        margin-top: 10px;
+        margin-bottom: 20px;
+        display: block;
+        width: 100%;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+      #result {
+        margin-top: 20px;
+        font-size: 18px;
+        font-weight: bold;
+      }
+      #difference {
+        margin-top: 10px;
+        font-size: 16px;
+        font-weight: bold;
+      }
+      #error {
+        color: red;
+        margin-top: 10px;
+      }
+      .details {
+        margin-top: 30px;
+        border-top: 1px solid #ddd;
+        padding-top: 20px;
+      }
+      .details h2 {
+        font-size: 18px;
+        margin-bottom: 10px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+      }
+      th,
+      td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+      }
+      th {
+        background-color: #f2f2f2;
+      }
+      .last-update {
+        font-size: 12px;
+        color: #666;
+        margin-top: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Currency Converter</h1>
+
+      <div>
+        <label for="csvInput"
+          >Enter comma-separated amounts and currencies:</label
+        >
+        <input
+          type="text"
+          id="csvInput"
+          placeholder="1400,USD,50,RSD,1322,USD,188999,CAD"
+        />
+
+        <div style="display: flex; gap: 10px; margin-bottom: 10px">
+          <div style="flex: 1">
+            <label for="previousTotal">Previous Total value:</label>
+            <input
+              type="number"
+              id="previousTotal"
+              placeholder="Enter previous total amount"
+            />
+          </div>
+          <div style="width: 100px">
+            <label for="expectedCurrency">Currency:</label>
+            <select
+              id="expectedCurrency"
+              style="
+                width: 100%;
+                padding: 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 16px;
+                height: 41px;
+              "
+            >
+              <option value="RSD">RSD</option>
+              <option value="USD">USD</option>
+            </select>
+          </div>
+        </div>
+
+        <button onclick="processInput()">Convert</button>
+      </div>
+
+      <div id="result"></div>
+      <div id="difference"></div>
+      <div id="error"></div>
+
+      <div class="details">
+        <h2>Currency Breakdown</h2>
+        <table id="breakdown">
+          <thead>
+            <tr>
+              <th>Currency</th>
+              <th>Amount</th>
+              <th>In USD</th>
+              <th>In RSD</th>
+            </tr>
+          </thead>
+          <tbody id="breakdownBody"></tbody>
+          <tfoot id="breakdownFooter"></tfoot>
+        </table>
+        <div class="last-update" id="lastUpdate"></div>
+      </div>
+    </div>
+
+    <script>
+      async function processInput() {
+        // Clear previous results and errors
+        document.getElementById('result').textContent = '';
+        document.getElementById('difference').textContent = '';
+        document.getElementById('error').textContent = '';
+        document.getElementById('breakdownBody').innerHTML = '';
+        document.getElementById('breakdownFooter').innerHTML = '';
+        document.getElementById('lastUpdate').textContent = '';
+
+        // Get the input
+        const csvInput = document.getElementById('csvInput').value.trim();
+        if (!csvInput) {
+          displayError('Please enter comma-separated values.');
+          return;
+        }
+
+        // Split the input string into an array
+        const inputArr = csvInput.split(',');
+
+        // Validate that we have pairs (amount, currency)
+        if (inputArr.length % 2 !== 0) {
+          displayError('Missing currency for the last input amount');
+          return;
+        }
+
+        // Process the input into a map of currency to total amount
+        const savings = {};
+
+        for (let i = 0; i < inputArr.length; i += 2) {
+          // Parse amount
+          const amt = parseInt(inputArr[i], 10);
+          if (isNaN(amt)) {
+            displayError(
+              `Item at index ${i} ('${inputArr[i]}') is not a valid number`
+            );
+            return;
+          }
+
+          // Validate currency code
+          const curCode = inputArr[i + 1].toUpperCase();
+          if (curCode.length !== 3) {
+            displayError(
+              `Currency code at ${i + 1} should be 3 characters in length: '${
+                inputArr[i + 1]
+              }'`
+            );
+            return;
+          }
+
+          // Add to totals
+          if (savings[curCode]) {
+            savings[curCode] += amt;
+          } else {
+            savings[curCode] = amt;
+          }
+        }
+
+        try {
+          // Fetch exchange rates
+          const response = await fetch('https://open.er-api.com/v6/latest/USD');
+
+          if (!response.ok) {
+            throw new Error(
+              `Failed to fetch exchange rates: ${response.status}`
+            );
+          }
+
+          const data = await response.json();
+
+          // Calculate the total in USD
+          let totalUsd = 0;
+          const breakdownBody = document.getElementById('breakdownBody');
+
+          for (const [curCode, amount] of Object.entries(savings)) {
+            const rate = data.rates[curCode];
+
+            if (!rate) {
+              displayError(`Non-existent currency code: ${curCode}`);
+              return;
+            }
+
+            const inUsd = amount / rate;
+            totalUsd += inUsd;
+
+            // Add row to breakdown table
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                        <td>${curCode}</td>
+                        <td>${amount.toLocaleString()}</td>
+                        <td>${inUsd.toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })} USD</td>
+                        <td>${(inUsd * data.rates.RSD).toLocaleString(
+                          undefined,
+                          { minimumFractionDigits: 2, maximumFractionDigits: 2 }
+                        )} RSD</td>
+                    `;
+            breakdownBody.appendChild(row);
+          }
+
+          // Check if RSD rate exists
+          const rsdRate = data.rates.RSD;
+          if (!rsdRate) {
+            displayError('Unexpected: RSD is not listed as a currency');
+            return;
+          }
+
+          // Calculate total in RSD
+          const total = totalUsd * rsdRate;
+
+          // Display result
+          document.getElementById(
+            'result'
+          ).textContent = `Total: ${total.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })} RSD`;
+
+          // Check if expected value is provided and calculate difference
+          const previousTotal = parseFloat(
+            document.getElementById('previousTotal').value
+          );
+          if (!isNaN(previousTotal)) {
+            const expectedCurrency =
+              document.getElementById('expectedCurrency').value;
+            let differenceRsd, differenceUsd;
+
+            if (expectedCurrency === 'RSD') {
+              // Expected value is in RSD
+              differenceRsd = total - previousTotal;
+              differenceUsd = differenceRsd / rsdRate;
+            } else {
+              // Expected value is in USD
+              differenceUsd = totalUsd - previousTotal;
+              differenceRsd = differenceUsd * rsdRate;
+            }
+
+            const differenceElement = document.getElementById('difference');
+
+            if (differenceRsd > 0) {
+              differenceElement.textContent = `Difference: +${differenceRsd.toLocaleString(
+                undefined,
+                { minimumFractionDigits: 2, maximumFractionDigits: 2 }
+              )} RSD / +${differenceUsd.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })} USD (surplus)`;
+              differenceElement.style.color = 'green';
+            } else if (differenceRsd < 0) {
+              differenceElement.textContent = `Difference: ${differenceRsd.toLocaleString(
+                undefined,
+                { minimumFractionDigits: 2, maximumFractionDigits: 2 }
+              )} RSD / ${differenceUsd.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })} USD (shortfall)`;
+              differenceElement.style.color = 'red';
+            } else {
+              differenceElement.textContent = `Difference: 0.00 RSD / 0.00 USD (exact match)`;
+              differenceElement.style.color = 'blue';
+            }
+          }
+
+          // Add total row to breakdown table
+          const footerRow = document.createElement('tr');
+          footerRow.innerHTML = `
+                    <td colspan="2"><strong>TOTAL</strong></td>
+                    <td><strong>${totalUsd.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })} USD</strong></td>
+                    <td><strong>${total.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })} RSD</strong></td>
+                `;
+          document.getElementById('breakdownFooter').appendChild(footerRow);
+
+          // Display last update time
+          document.getElementById(
+            'lastUpdate'
+          ).textContent = `Exchange rates last updated: ${data.time_last_update_utc}`;
+        } catch (error) {
+          displayError(`Error: ${error.message}`);
+        }
+      }
+
+      function displayError(message) {
+        document.getElementById('error').textContent = message;
+      }
+    </script>
+  </body>
+</html>
